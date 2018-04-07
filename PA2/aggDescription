@@ -1,0 +1,13 @@
+Aggregate_Votes:
+  There are two helper functions in Aggregate _Vote, getAggCount() and
+  getVoteResult(). getAggCount() will fork to two process, in child process,
+  it searches find leaf node and call Leaf_Counter. In parent process, it call
+  getAggCount() using current path.
+  GetVoteResult() takes a relative path and a directory name, and generate a new
+  txt file depending on the directory name and sub-directory under relative path.
+
+  Vote_Counter:
+  Vote Counter will fork to two process. In the child process, it calls Aggregate_Votes
+  to get result, and in the parent process, it determine winner after read through
+  the file. Also, The winner will be stored in a string and appended to the end
+  of same file.
