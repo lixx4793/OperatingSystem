@@ -28,6 +28,7 @@ typedef struct pathStu {
 	int numChild;
 	char** childName;
 	char* parentName;
+	char* output;
 	struct voteNode* votes;
 	struct pathStu* next;
 } pathStu_t;
@@ -39,6 +40,134 @@ typedef struct voteNode {
 	struct voteNode* next;
 } voteNode_t;
 
+
+typedef struct queue {
+	char* name;
+	struct queue* next;
+} queue_t;
+
+
+// This function add an element into queue q
+void enqueue(struct queue* q, char* name) {
+	struct queue* current = (struct queue*)malloc(sizeof(struct queue));
+	struct queue* newnode = (struct queue*)malloc(sizeof(struct queue));
+	current = q;
+	while(current->next) {
+		current = current->next;
+	}
+	newnode->name = name;
+	current->next = newnode;
+}
+
+
+// This function remove a element and return the name
+char* dequeue(struct queue* q) {
+	char* name = malloc(sizeof(char) * strlen(q->name));
+	strcpy(name, q->name);
+	if(!(q->next)) {
+		q = NULL;
+	} else {
+		q->name = q->next->name;
+		q->next = q->next->next;
+	}
+	// printf("--%s is dequeued from mainQueue\n", name);
+	return name;
+}
+
+void viewQueue(struct queue* q) {
+	struct queue* temp  = (struct queue*)malloc(sizeof(struct queue));
+	temp = q;
+	while(temp != NULL) {
+		printf("Queue-----: %s\n", temp->name);
+		temp = temp->next;
+	}
+	free(temp);
+}
+
+
+struct pathStu* findNodeByName(struct pathStu* p, char* name) {
+	if( p == NULL) return NULL;
+	struct pathStu* temp  = (struct pathStu*)malloc(sizeof(struct pathStu));
+	temp = p;
+	while( temp != NULL) {
+		if(!strcmp(temp->name, name)) {
+			return temp;
+		}
+		temp = temp->next;
+	}
+	return NULL;
+}
+
+
+
+// Recursively Initalize for child output path for all nodes that have children
+void recAdd(struct pathStu* path) {
+	struct pathStu* temp  = (struct pathStu*)malloc(sizeof(struct pathStu));
+	temp = path;
+	for(int i = 0; i < temp->numChild; i++) {
+		struct pathStu* childTemp = findNodeByName(path, temp->childName[i]);
+		if(childTemp == NULL) return;
+		char* append = malloc(sizeof(char) * (strlen(childTemp->name) + 5 ) );
+		append = childTemp->name;
+		char* output = malloc(sizeof(char) * ( strlen(temp->output)
+		 + strlen(childTemp->name) + 50 ));
+		 strcat(output, temp->output);
+		 strcat(output, "/");
+		 strcat(output, append);
+		 childTemp->output = output;
+		 pid_t pid;
+		 if(childTemp->numChild > 0) {
+			 struct pathStu* temp2  = (struct pathStu*)malloc(sizeof(struct pathStu));
+			 temp2 = childTemp;
+			 recAdd(temp2);
+		 }
+	}
+}
+
+
+
+
+//  Add output directory to the root file
+void addOutputDir(struct pathStu* p, char* output) {
+	if(p == NULL) return;
+	struct pathStu* temp  = (struct pathStu*)malloc(sizeof(struct pathStu));
+	temp = p;
+	while(temp != NULL) {
+		if(temp->parentName == NULL) {
+			//  Initialize the output file for the root node
+			char* op = malloc(sizeof(char) * (strlen(output) + strlen(temp->name) + 50));
+			strcat(op, output);
+			strcat(op, "/");
+			strcat(op, temp->name);
+			temp->output =op;
+
+			// Initialize the output file for the children directory
+			for(int i = 0; i < temp->numChild; i++) {
+				struct pathStu* childPath = (struct pathStu*)malloc(sizeof(struct pathStu));
+				childPath = findNodeByName(p, temp->childName[i]);
+				char* outputPath = malloc(sizeof(char) *
+				(strlen(temp->output) + strlen(childPath->name) + 50));
+				strcat(outputPath, temp->output);
+				strcat(outputPath, "/");
+				strcat(outputPath, childPath->name);
+				childPath->output = outputPath;
+				if(childPath->numChild != 0) {
+					recAdd(childPath);
+				}
+			}
+			return;
+		}
+		temp = temp->next;
+	}
+}
+
+
+void genOutputDir(struct pathStu * p) {
+
+
+}
+
+// This function append voteNode
 void appendVote(struct voteNode* a, struct voteNode* b){
 	if(b==NULL) return;
 	struct voteNode* current =(struct voteNode*)malloc(sizeof(struct voteNode));
@@ -67,12 +196,16 @@ void appendVote(struct voteNode* a, struct voteNode* b){
 		current->next = b;
 }
 
+// This funciton append for pathStu
 void append(struct pathStu* a, struct pathStu* b){
+
 	if(b==NULL) return;
 	struct pathStu* current =(struct pathStu*)malloc(sizeof(struct pathStu));
 	current = a;
+
 	while(current->next != NULL) {
-		//  Do nothing if the node is already existed.
+
+		//  merge the vale of childName and number of child to original node
 		if(!strcmp(b->name, current->name)) {
 			current->childName = b->childName;
 			current->numChild = b->numChild;
@@ -88,7 +221,7 @@ void append(struct pathStu* a, struct pathStu* b){
 		current->next = b;
 }
 
-
+// The finction print out the information stored in a node structure
 void viewNode(struct pathStu* a) {
 	if(a == NULL) {
 		printf("-- NULL --\n");
@@ -96,7 +229,7 @@ void viewNode(struct pathStu* a) {
 	struct pathStu* current = (struct pathStu*)malloc(sizeof(struct pathStu));
 	current = a;
 	while(current != NULL) {
-		printf("\nNode------: %s, numChild: %d, parent%s \n", current->name, current->numChild, current->parentName);
+		printf("\nNode------: %s, numChild: %d, parent: %s, output: %s\n", current->name, current->numChild, current->parentName, current->output);
 		if(current->numChild != 0) {
 			for(int i =0; i < current->numChild; i++){
 			printf("			Child: %s\n", current->childName[i]);
@@ -152,8 +285,17 @@ int makeargv(const char *s, const char *delimiters, char ***argvp) {
    return numtokens;
 }
 
-
-
+// This function return the number of element in a directory
+int dirSize(const char* path){
+	DIR* dir = opendir(path);
+	struct dirent* dint;
+	int count = 0 ;
+		while((dint = readdir(dir)) != NULL){
+			if(!strcmp(".", dint->d_name) || !strcmp("..",dint->d_name)) continue;
+			count++;
+		}
+		return count;
+}
 
 // This function will make sure one candidate is only appeard once in a node
 
@@ -170,6 +312,7 @@ void freemakeargv(char **argv) {
    free(argv);
 }
 
+//  This function trim the space of a line
 char *trimwhitespace(char *str) {
   char *end;
   // Trim leading space
