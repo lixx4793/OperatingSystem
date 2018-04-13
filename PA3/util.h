@@ -26,57 +26,274 @@
 typedef struct pathStu {
 	char* name;
 	int numChild;
-	char** childs;
-	char* parent;
-	struct pathStu* next;
+	char** childName;
+	char* parentName;
+	char* output;
 	struct voteNode* votes;
-
-};
+	struct pathStu* next;
+} pathStu_t;
 
 
 typedef struct voteNode {
 	char* name;
-	char* vote;
+	int vote;
 	struct voteNode* next;
-};
+} voteNode_t;
 
+
+typedef struct queue {
+	char* name;
+	struct queue* next;
+} queue_t;
+
+
+typedef struct argu {
+	struct queue* cq;
+	pthread_mutex_t* mutex;
+} argu_t;
+
+
+
+struct pathStu* findRoot(struct pathStu* a) {
+	struct pathStu* p = (struct pathStu*)malloc(sizeof(struct pathStu));
+	p = a;
+	while(p != NULL) {
+		if( p->parentName ==NULL) {
+			return p;
+		}
+		p = p->next;
+	}
+	return NULL;
+}
+
+
+
+
+
+
+// This function add an element into queue q
+void enqueue(struct queue* q, char* name) {
+	struct queue* current = (struct queue*)malloc(sizeof(struct queue));
+	struct queue* newnode = (struct queue*)malloc(sizeof(struct queue));
+	current = q;
+	while(current->next) {
+		current = current->next;
+	}
+	newnode->name = name;
+	current->next = newnode;
+}
+
+
+// This function remove a element and return the name
+char* dequeue(struct queue* q) {
+	char* name = malloc(sizeof(char) * strlen(q->name));
+	strcpy(name, q->name);
+	if(!(q->next)) {
+		q = NULL;
+	} else {
+		q->name = q->next->name;
+		q->next = q->next->next;
+	}
+	// printf("--%s is dequeued from mainQueue\n", name);
+	return name;
+}
+
+void viewQueue(struct queue* q) {
+	struct queue* temp  = (struct queue*)malloc(sizeof(struct queue));
+	temp = q;
+	while(temp != NULL) {
+		printf("Queue-----: %s\n", temp->name);
+		temp = temp->next;
+	}
+	free(temp);
+}
+
+
+struct pathStu* findNodeByName(struct pathStu* p, char* name) {
+	if( p == NULL) return NULL;
+	struct pathStu* temp  = (struct pathStu*)malloc(sizeof(struct pathStu));
+	temp = p;
+	while( temp != NULL) {
+		if(!strcmp(temp->name, name)) {
+			return temp;
+		}
+		temp = temp->next;
+	}
+	return NULL;
+}
+
+
+
+// Recursively Initalize for child output path for all nodes that have children
+void recAdd(struct pathStu* path) {
+	struct pathStu* temp  = (struct pathStu*)malloc(sizeof(struct pathStu));
+	temp = path;
+	for(int i = 0; i < temp->numChild; i++) {
+		struct pathStu* childTemp = findNodeByName(path, temp->childName[i]);
+		if(childTemp == NULL) return;
+		char* append = malloc(sizeof(char) * (strlen(childTemp->name) + 5 ) );
+		append = childTemp->name;
+		char* output = malloc(sizeof(char) * ( strlen(temp->output)
+		 + strlen(childTemp->name) + 50 ));
+		 strcat(output, temp->output);
+		 strcat(output, "/");
+		 strcat(output, append);
+		 childTemp->output = output;
+
+
+		 DIR* dir = opendir(output);
+		 if(dir){
+
+		 } else {
+		 int d = mkdir(output, 0777);
+		 if( d < 0) {
+			 perror("Unable to Create Directory");
+			 exit(0);
+		 }
+	 }
+
+
+		 if(childTemp->numChild > 0) {
+			 struct pathStu* temp2  = (struct pathStu*)malloc(sizeof(struct pathStu));
+			 temp2 = childTemp;
+			 recAdd(temp2);
+		 }
+	}
+}
+
+
+
+
+//  Add output directory to the root file
+void addOutputDir(struct pathStu* p, char* output) {
+	if(p == NULL) return;
+	struct pathStu* temp  = (struct pathStu*)malloc(sizeof(struct pathStu));
+	temp = p;
+	while(temp != NULL) {
+		if(temp->parentName == NULL) {
+			//  Initialize the output file for the root node
+			char* op = malloc(sizeof(char) * (strlen(output) + strlen(temp->name) + 50));
+			strcat(op, output);
+			strcat(op, "/");
+			strcat(op, temp->name);
+			temp->output =op;
+
+
+			DIR* dir2 = opendir(temp->output);
+			if(dir2) {}
+			else {
+			int d = mkdir(temp->output, 0777);
+			if( d < 0) {
+				perror("Unable to Create Directory");
+				exit(0);
+			}
+		}
+			// Initialize the output file for the children directory
+			for(int i = 0; i < temp->numChild; i++) {
+				struct pathStu* childPath = (struct pathStu*)malloc(sizeof(struct pathStu));
+				childPath = findNodeByName(p, temp->childName[i]);
+				char* outputPath = malloc(sizeof(char) *
+				(strlen(temp->output) + strlen(childPath->name) + 50));
+				strcat(outputPath, temp->output);
+				strcat(outputPath, "/");
+				strcat(outputPath, childPath->name);
+				childPath->output = outputPath;
+				DIR* dir = opendir(outputPath);
+				if(dir){
+
+				} else {
+				int d2 = mkdir(outputPath, 0777);
+				if( d2 < 0) {
+					perror("Unable to Create Directory");
+					exit(0);
+				}
+			}
+				if(childPath->numChild != 0) {
+					recAdd(childPath);
+				}
+			}
+			return;
+		}
+		temp = temp->next;
+	}
+}
+
+// This function append voteNode
 void appendVote(struct voteNode* a, struct voteNode* b){
-	if(b==NULL) return;
-	struct voteNode* current =(struct voteNode*)malloc(sizeof(struct voteNode));
+	struct voteNode* current = (struct voteNode*)malloc(sizeof(struct voteNode));
 	struct voteNode* newNode = (struct voteNode*)malloc(sizeof(struct voteNode));
-	current = a;
 	newNode = b;
-	while(current->next != NULL){
-		if(!strcmp(newNode->name, current->name)) {
-			int vote = atoi(newNode->vote) + atoi(current->vote);
-			char total[10];
-			sprintf(total, "%d", vote);
-			strcpy(current->vote, total);
+	current = a;
+	while(current->next != NULL) {
+		if(!strcmp(b->name, current->name)) {
+			current->vote += b->vote;
 			return;
 		}
 			current = current->next;
 		}
+
 		// For the last Node!!!
-		if(!strcmp(newNode->name, current->name)) {
-			int vote = atoi(newNode->vote) + atoi(current->vote);
-			char total[10];
-			sprintf(total, "%d", vote);
-			strcpy(current->vote, total);
+		if(!strcmp(b->name, current->name)) {
+			// printf("---------%s: %d + %d: \n", current->name, current->vote, b->vote);
+			current->vote += b->vote;
 			return;
 		}
-		// else set a new node
+		// // else set a new node
 		current->next = b;
 }
 
+// This funciton append for pathStu
+void append(struct pathStu* a, struct pathStu* b){
 
-void appendName(char** result, char* stuff) {
-	char fileName[sizeof(result) + sizeof(stuff) + 2];
-	fileName[0] = '\0';
-	strcat(fileName, *result);
-	strcat(fileName, "/");
-	strcat(fileName, stuff);
-	result = &fileName;
+	if(b==NULL) return;
+	struct pathStu* current =(struct pathStu*)malloc(sizeof(struct pathStu));
+	current = a;
+
+	while(current->next != NULL) {
+
+		//  merge the vale of childName and number of child to original node
+		if(!strcmp(b->name, current->name)) {
+			current->childName = b->childName;
+			current->numChild = b->numChild;
+			return;
+		}
+			current = current->next;
+		}
+		if(!strcmp(b->name, current->name)) {
+			current->childName = b->childName;
+			current->numChild = b->numChild;
+			return;
+		}
+		current->next = b;
 }
+
+// The finction print out the information stored in a node structure
+void viewNode(struct pathStu* a) {
+	if(a == NULL) {
+		printf("-- NULL --\n");
+	}
+	struct pathStu* current = (struct pathStu*)malloc(sizeof(struct pathStu));
+	current = a;
+	while(current != NULL) {
+		printf("\nNode------: %s, numChild: %d, parent: %s, output: %s\n", current->name, current->numChild, current->parentName, current->output);
+		if(current->numChild != 0) {
+			for(int i =0; i < current->numChild; i++){
+			printf("			Child: %s\n", current->childName[i]);
+		}
+		}
+		current = current->next;
+	}
+}
+
+void viewVote(struct voteNode* a) {
+	struct voteNode* current = a;
+	while(current!= NULL) {
+		printf("The Name is: %s, the votes is: %d\n", current->name, current->vote);
+		current = current->next;
+	}
+
+}
+
 
 /**********************************
 *
@@ -123,7 +340,41 @@ int makeargv(const char *s, const char *delimiters, char ***argvp) {
 }
 
 
+char* decrypt(char* input) {
+	char* copy = input;
+	int len = strlen(copy);
+	char* output = malloc(sizeof(char)*len);
+	for (int i = 0; i < len; i++) {
+		int code = (int)(copy[i]);
+		if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
+			// only decrypt english alphabets
+			int temp = code + 2;
+			if (temp == 91 || temp == 92 || temp == 123 || temp == 124) {
+				// YZ->AB, yz->ab
+				temp = temp - 26;
+			}
+			output[i] = (char)temp;
+		} else { output[i] = copy[i]; }
+	}
+	return output;
+}
 
+
+// This function return the number of element in a directory
+int dirSize(const char* path, struct pathStu* node){
+	DIR* dir = opendir(path);
+	if(dir == NULL) {
+		perror("Unable to open the directory");
+		exit(0);
+	}
+	struct dirent* dint;
+	int count = 0 ;
+		while((dint = readdir(dir)) != NULL){
+			if(!strcmp(".", dint->d_name) || !strcmp("..",dint->d_name)) continue;
+			if(findNodeByName(node, dint->d_name)){ count++;}
+		}
+		return count;
+}
 
 // This function will make sure one candidate is only appeard once in a node
 
@@ -140,6 +391,7 @@ void freemakeargv(char **argv) {
    free(argv);
 }
 
+//  This function trim the space of a line
 char *trimwhitespace(char *str) {
   char *end;
   // Trim leading space
@@ -157,4 +409,28 @@ char *trimwhitespace(char *str) {
   *(end+1) = 0;
 
   return str;
+}
+
+
+void recDelete(char* root) {
+	struct stat sb;
+	if (stat(root, &sb) == 0 && S_ISDIR(sb.st_mode))
+	{
+		DIR *d = opendir(root);
+		struct dirent* dint;
+	    while((dint = readdir(d)) != NULL){
+				char* newName = malloc(sizeof(char) * (strlen(root) + strlen(dint->d_name) + 5));
+				strcat(newName, root);
+				strcat(newName, "/");
+				strcat(newName, dint->d_name);
+	      if(!strcmp(".", dint->d_name) || !strcmp("..",dint->d_name)) continue;
+				if(dint->d_type == DT_DIR) {recDelete(newName);}
+	      if(dint->d_type != DT_DIR && strcmp(dint->d_name, "log.txt")) {
+					if(remove(newName) == 0) {
+					} else {
+						printf("Unable to delete file ~~~~~~~ %s\n", dint->d_name);
+					}
+				}
+		}
+	}
 }
