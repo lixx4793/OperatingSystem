@@ -1,3 +1,10 @@
+/* login: duxxx336, lixx4793
+ * date: 04/14/2018
+ * name: Feifan Du, Yuhao Li
+ * id: 5099129, 5250438
+ * Extra credits [No]
+ */
+
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -61,6 +68,19 @@ void endLog( char* name, pthread_t thread) {
 }
 
 
+void writeToFile(char* outputName, char* name) {
+  FILE* leafTxt = fopen(outputName, "a");
+  if (!leafTxt) {
+    perror("Failed to open input file\n");
+    exit(0);
+  }
+  fprintf(leafTxt, "%s\n", name);
+  if(fclose(leafTxt) < 0) {
+    perror("Unable to close file");
+    exit(0);
+  }
+}
+
 //  This is the muti-thread function
 void* executeChildThread(void* argu) {
   struct argu* arg = (struct argu *)malloc(sizeof(struct argu));
@@ -99,6 +119,15 @@ void* executeChildThread(void* argu) {
     printf("Failed to open diagram file\n");
     exit(0);
   }
+
+  int outputSize = strlen(findNodeByName(mainNode, name)->name) + strlen(name) + 10;
+  outputName = malloc(sizeof(char) * outputSize);
+  outputName[0] = '\0';
+  strcat(outputName, findNodeByName(mainNode, name)->output);
+  strcat(outputName, "/");
+  strcat(outputName, name);
+  strcat(outputName, ".txt");
+
   //  Keep reading util no byte readed
   while((r = read(input, buf, MAX_IO_BUFFER_SIZE)) > 0) {
     char** content;
@@ -111,15 +140,18 @@ void* executeChildThread(void* argu) {
       ballot->vote = 1;
       //  Add Decrypted name to node
       ballot->name = decrypt(candidate);
+      writeToFile(outputName, ballot->name);
       if(rootVote == NULL) {
         rootVote = (struct voteNode*)malloc(sizeof(struct voteNode));
         rootVote->name = ballot->name;
         rootVote->vote = ballot->vote;
+        free(ballot);
       } else {
         appendVote(rootVote, ballot);
       }
     }
   }
+
   if(r < 0) {
     perror("Reading Error in thread");
     exit(0);
@@ -129,29 +161,12 @@ void* executeChildThread(void* argu) {
     exit(0);
   }
 
-  // Generate the path for inputFile.txt
-  int outputSize = strlen(findNodeByName(mainNode, name)->name) + strlen(name) + 10;
-  outputName = malloc(sizeof(char) * outputSize);
-  outputName[0] = '\0';
-  strcat(outputName, findNodeByName(mainNode, name)->output);
-  strcat(outputName, "/");
-  strcat(outputName, name);
-  strcat(outputName, ".txt");
-  struct voteNode* temp = rootVote;
-  // Write the data stored in input to  inputFile.txt
-  FILE* leafTxt = fopen(outputName, "w");
-  if (!leafTxt) {
-    perror("Failed to open input file\n");
-    exit(0);
-  }
-  while(temp != NULL) {
-    fprintf(leafTxt, "%s:%d\n", temp->name, temp->vote);
-    temp = temp->next;
-  }
-  if(fclose(leafTxt) < 0) {
-    perror("Unable to Close File");
-    exit(0);
-  }
+
+
+
+
+
+
 
   //  Find the Node with name inputFile, and get the name of it's parentName
   char* parentName = findNodeByName(mainNode, name)->parentName;
@@ -161,10 +176,11 @@ void* executeChildThread(void* argu) {
     perror("Unable to lock");
     exit(0);
   }
-
     //  Keep procssing until reach the root node ( root->parent = NULL)
   while(parentName != NULL) {
-    struct voteNode* temp2 = rootVote;
+    struct voteNode* temp2 = (struct voteNode*) malloc(sizeof(struct voteNode));
+    temp2 = rootVote;
+
     struct pathStu* parentNode = findNodeByName(mainNode, parentName);
   //  Get the path for parent file
     char* aggName = malloc(sizeof(char) *
@@ -176,8 +192,19 @@ void* executeChildThread(void* argu) {
     strcat(aggName, ".txt");
   // printf("Agg file is: %s\n", aggName);
 
-  //  If the parent file already exist,read the content and add all
-  //  vote from current thread to the file.
+
+  if(rootVote == NULL || rootVote->name == NULL ) {
+    // Nothing readed into file, only create file
+    if(open(aggName, O_CREAT) > 0) {
+      chmod(aggName, 0777);
+    } else {
+      perror("Unable to create file");
+      exit(0);
+    }
+    //  If the parent file already exist,read the content and add all
+    //  vote from current thread to the file.
+  } else {
+
     if(open(aggName, O_WRONLY) > 0) {
       chmod(aggName, 0777);
       int input = open(aggName, O_RDONLY);
@@ -187,7 +214,7 @@ void* executeChildThread(void* argu) {
       }
       int r;
       char* buf = malloc(sizeof(char)*MAX_IO_BUFFER_SIZE);
-      struct voteNode* readVote = (struct voteNode*) malloc(sizeof(struct voteNode));
+      struct voteNode* readVote;
       r = read(input, buf, MAX_IO_BUFFER_SIZE);
       // printf("adding %s from %s ~~~\n", aggName, name);
       char** content;
@@ -204,10 +231,15 @@ void* executeChildThread(void* argu) {
           element->name = value[0];
           element->vote = atoi(value[1]);
       // Initialize the root of this structure
-          if(readVote->name == NULL) {
-            readVote = element;
+
+          if(readVote == NULL) {
+            readVote = (struct voteNode*) malloc(sizeof(struct voteNode));
+            readVote->name = element->name;
+            readVote->vote = element->vote;
+            free(element);
           } else {
               appendVote(readVote, element);
+              free(element);
             }
           }
         }
@@ -216,15 +248,26 @@ void* executeChildThread(void* argu) {
           exit(0);
         }
         // Add the votes from current input file to it's parent file
-        while(temp2 != NULL) {
+        while(temp2 != NULL ) {
+          if(readVote == NULL) {
+            readVote = (struct voteNode*) malloc(sizeof(struct voteNode));
+            readVote->name = temp2->name;
+            readVote->vote = temp2->vote;
+            temp2 = temp2->next;
+          } else {
           appendVote(readVote, temp2);
           temp2 = temp2->next;
         }
+        }
+
+        free(temp2);
+
         FILE* agg = fopen(aggName, "w");
         if (!agg) {
           perror("Failed to open input file\n");
           exit(0);
         }
+
         while(readVote != NULL) {
           fprintf(agg,"%s:%d\n", readVote->name, readVote->vote);
           readVote=readVote->next;
@@ -233,7 +276,10 @@ void* executeChildThread(void* argu) {
           perror("Unable to close File");
           exit(0);
         }
+
         } else {
+
+
       //   If the File not exist, Write to file directly
           chmod(aggName, 0777);
           int existed = open(aggName, O_CREAT | O_WRONLY);
@@ -242,6 +288,7 @@ void* executeChildThread(void* argu) {
             printf("Fail to open aggreated file: %s\n", aggName);
             exit(0);
           }
+
           while(temp2 != NULL) {
             char* votes = malloc(sizeof(char) * 5);
             sprintf(votes, "%d", temp2->vote);
@@ -254,11 +301,13 @@ void* executeChildThread(void* argu) {
             write(existed, bal, strlen(bal));
             temp2 = temp2->next;
           }
+          free(temp2);
           if(close(existed) < 0) {
             perror("Unable to close File");
             exit(0);
           }
         }
+      }
       parentName = findNodeByName(mainNode, parentName)->parentName;
         // Critial Section End
     }
@@ -317,7 +366,13 @@ struct pathStu* initStructure(char* dagFile) {
   int r;
   char* buf = malloc(sizeof(char)*MAX_IO_BUFFER_SIZE);
   struct pathStu* mainNode = (struct pathStu*)malloc(sizeof(struct pathStu));
-	while(( r = read(input, buf, MAX_IO_BUFFER_SIZE)) > 0) {
+  r = read(input, buf, MAX_IO_BUFFER_SIZE);
+  if(r == 0) {
+    perror("No element in dag.txt");
+    exit(0);
+  }
+
+	while( r  > 0) {
 	char** content;
 	int nlines = makeargv(buf, "\n", &content);
 	// Trim starting and ending whitespaces for each line
@@ -351,6 +406,7 @@ struct pathStu* initStructure(char* dagFile) {
         append(mainNode, subNode);
     }
 	}
+    r = read(input, buf, MAX_IO_BUFFER_SIZE);
 } if (r < 0) {
   printf("Failed to read diagram file\n");
   exit(1);
@@ -368,6 +424,7 @@ int main(int argc, char **argv){
   char* dagFile = argv[1];
   input = argv[2];
   char* outputRoot = argv[3];
+  // Delete the output folder if it already exists
   recDelete(outputRoot);
   mainNode = initStructure(dagFile);
   // Create output directory
@@ -377,7 +434,7 @@ int main(int argc, char **argv){
   } else {
   int d = mkdir(outputRoot, 0777);
   if( d < 0) {
-    perror("Unable to Create Directory");
+    perror("Unable to Create Directory, no such a pat h");
     exit(0);
   }
 }
@@ -398,7 +455,7 @@ int main(int argc, char **argv){
     exit(0);
   }
 
-  // If the log file already exited, clear the file content to empty
+  // // If the log file already exited, clear the file content to empty
   FILE* targetFile = fopen(logFile, "w");
   if (!targetFile) {
     perror("Failed to open log.txt\n");
@@ -426,10 +483,17 @@ int main(int argc, char **argv){
   pthread_t ids[count];
   // printf("THere are total: %d files\n", count);
   if(count == 0) {
+    char* del = malloc(sizeof(char) * strlen(outputRoot) + 7);
+    del[0] = '\0';
+    strcat(del, outputRoot);
+    strcat(del, "/log.txt");
+    remove(del);
+    recDelete(outputRoot);
+    rmdir(outputRoot);
     printf("error: input directory is empty\n");
     exit(0);
   } else {
-    printf("the count is:%d\n", count);
+    // printf("the count is:%d\n", count);
   }
 
   for(int i = 0; i < count; i++) {
@@ -439,6 +503,8 @@ int main(int argc, char **argv){
     pthread_join(ids[j], NULL);
   }
 
+  // find the root node in the mainNode structure
+  // and get the path of the root file
   struct pathStu* pN = findRoot(mainNode);
   char* file = malloc(sizeof(char) * (strlen(pN->output) + strlen(pN->name) + 10));
   file[0] = '\0';
@@ -448,21 +514,28 @@ int main(int argc, char **argv){
   strcat(file, ".txt");
   char* buf = malloc(sizeof(char)*MAX_IO_BUFFER_SIZE);
   int r;
-  int input2 = open(file, O_RDONLY);
+  int input2 = open(file, O_RDONLY | O_CREAT);
   if (input2 < 0) {
     printf("Failed to open file%s\n", file);
     exit(0);
   }
+  chmod(file, 0777);
+  // read the root file and find the winner according to the votes
   char* winner;
   char* votes;
+
   while((r = read(input2, buf, MAX_IO_BUFFER_SIZE)) > 0) {
+    if( r == 0) {
+      perror("No data in final file, there is no winner");
+      exit(0);
+    }
     char** content;
     int nlines = makeargv(buf, "\n", &content);
     int max = 0;
     for(int k = 0; k < nlines; k++) {
       char** value;
       int sep = makeargv(content[k], ":", &value);
-      if(sep == 2){
+      if(sep == 2) {
       if(atoi(value[1]) > max) {
         max = atoi(value[1]);
         votes = value[1];
@@ -476,16 +549,25 @@ int main(int argc, char **argv){
     exit(0);
   }
 
+  // declare the winner
+  if(winner != NULL) {
   int input3 = open(file, O_WRONLY | O_APPEND);
+  if(input3 < 0) {
+    perror("Unable to open the file");
+    exit(0);
+  }
   char* result = malloc(sizeof(char) * (strlen(winner) + 8));
   result[0] = '\0';
   strcat(result, "WINNER:");
   strcat(result, winner);
-  strcat(result, "\n");
   write(input3, result, strlen(result));
+
   if(close(input3) < 0) {
     perror("Unable to close File");
     exit(0);
   }
-
+} else {
+  perror("All input file are empty");
+  exit(0);
+}
 }

@@ -5,7 +5,7 @@
 # Extra credits [No]
 
 make:
-	gcc -pthread -o votecounter newCount.c
+	gcc -pthread -o votecounter votecounter.c
 
 clean:
 	rm votecounter

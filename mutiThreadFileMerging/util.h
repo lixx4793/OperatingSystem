@@ -1,7 +1,8 @@
 /* login: duxxx336, lixx4793
- *
+ * date: 04/14/2018
  * name: Feifan Du, Yuhao Li
  * id: 5099129, 5250438
+ * Extra credits [No]
  */
 
 #include <errno.h>
@@ -65,6 +66,84 @@ struct pathStu* findRoot(struct pathStu* a) {
 	}
 	return NULL;
 }
+
+
+
+
+
+
+
+typedef struct arguP {
+	struct pQueue* pq;
+	pthread_mutex_t* mutex;
+	pthread_cond_t* cond;
+} arguP_t;
+
+typedef struct pQueue {
+	char* name;
+	int pr;
+	struct pQueue * next;
+
+} pQueue_t;
+
+
+void enqueueP(struct pQueue* q, struct pQueue* qa) {
+	struct pQueue* current = (struct pQueue*)malloc(sizeof(struct pQueue));
+	struct pQueue* newnode = (struct pQueue*)malloc(sizeof(struct pQueue));
+	current = q;
+	while(current->next) {
+		//	Add it to the front of the currnt
+		if(qa->pr <= current->pr && qa->pr > 0) {
+			newnode->name = malloc(sizeof(char) * strlen(current->name));
+			newnode->name =current->name;
+			newnode->pr = current->pr;
+			newnode->next = current->next;
+			current->name = qa->name;
+			current->pr = qa->pr;
+			current->next = newnode;
+			return;
+		}
+		current = current->next;
+	}
+	// COMPARE WITH THE LAST PQUEUE
+	if(qa->pr <= current->pr && qa->pr > 0) {
+		newnode->name = malloc(sizeof(char) * strlen(current->name));
+		newnode->name =current->name;
+		newnode->pr = current->pr;
+		newnode->next = current->next;
+		current->name = qa->name;
+		current->pr = qa->pr;
+		current->next = newnode;
+		return;
+	} else {
+		newnode->name = malloc(sizeof(char) * strlen(current->name));
+		newnode->pr = qa->pr;
+		current->next = newnode;
+	}
+		// if the priority is negative, then add to the end of queue
+}
+
+
+// This function remove a element and return the name
+char* dequeueP(struct pQueue* q) {
+	char* name = malloc(sizeof(char) * strlen(q->name));
+	strcpy(name, q->name);
+	if(!(q->next)) {
+		q = NULL;
+	} else {
+		q->name = q->next->name;
+		q->pr = q->next->pr;
+		q->next = q->next->next;
+	}
+	// printf("--%s is dequeued from mainQueue\n", name);
+	return name;
+}
+
+
+
+
+
+
 
 
 
@@ -222,7 +301,8 @@ void addOutputDir(struct pathStu* p, char* output) {
 void appendVote(struct voteNode* a, struct voteNode* b){
 	struct voteNode* current = (struct voteNode*)malloc(sizeof(struct voteNode));
 	struct voteNode* newNode = (struct voteNode*)malloc(sizeof(struct voteNode));
-	newNode = b;
+	newNode->name = b->name;
+	newNode->vote = b->vote;
 	current = a;
 	while(current->next != NULL) {
 		if(!strcmp(b->name, current->name)) {
@@ -239,7 +319,7 @@ void appendVote(struct voteNode* a, struct voteNode* b){
 			return;
 		}
 		// // else set a new node
-		current->next = b;
+		current->next = newNode;
 }
 
 // This funciton append for pathStu
@@ -267,7 +347,7 @@ void append(struct pathStu* a, struct pathStu* b){
 		current->next = b;
 }
 
-// The finction print out the information stored in a node structure
+// print out the information stored in a node structure
 void viewNode(struct pathStu* a) {
 	if(a == NULL) {
 		printf("-- NULL --\n");
@@ -294,6 +374,21 @@ void viewVote(struct voteNode* a) {
 
 }
 
+// This function return the number of element in a directory
+int dirSize(const char* path, struct pathStu* node){
+	DIR* dir = opendir(path);
+	if(dir == NULL) {
+		perror("Unable to open the directory");
+		exit(0);
+	}
+	struct dirent* dint;
+	int count = 0 ;
+		while((dint = readdir(dir)) != NULL){
+			if(!strcmp(".", dint->d_name) || !strcmp("..",dint->d_name)) continue;
+			if(findNodeByName(node, dint->d_name)){ count++;}
+		}
+		return count;
+}
 
 /**********************************
 *
@@ -359,25 +454,6 @@ char* decrypt(char* input) {
 	return output;
 }
 
-
-// This function return the number of element in a directory
-int dirSize(const char* path, struct pathStu* node){
-	DIR* dir = opendir(path);
-	if(dir == NULL) {
-		perror("Unable to open the directory");
-		exit(0);
-	}
-	struct dirent* dint;
-	int count = 0 ;
-		while((dint = readdir(dir)) != NULL){
-			if(!strcmp(".", dint->d_name) || !strcmp("..",dint->d_name)) continue;
-			if(findNodeByName(node, dint->d_name)){ count++;}
-		}
-		return count;
-}
-
-// This function will make sure one candidate is only appeard once in a node
-
 /**********************************
 *
 * Taken from Unix Systems Programming, Robbins & Robbins, p38
@@ -411,7 +487,7 @@ char *trimwhitespace(char *str) {
   return str;
 }
 
-
+// delete the entire folder
 void recDelete(char* root) {
 	struct stat sb;
 	if (stat(root, &sb) == 0 && S_ISDIR(sb.st_mode))
@@ -424,7 +500,9 @@ void recDelete(char* root) {
 				strcat(newName, "/");
 				strcat(newName, dint->d_name);
 	      if(!strcmp(".", dint->d_name) || !strcmp("..",dint->d_name)) continue;
-				if(dint->d_type == DT_DIR) {recDelete(newName);
+				if(dint->d_type == DT_DIR) {
+					recDelete(newName);
+					remove(newName);
 				}
 	      if(dint->d_type != DT_DIR && strcmp(dint->d_name, "log.txt")) {
 					if(remove(newName) == 0) {
