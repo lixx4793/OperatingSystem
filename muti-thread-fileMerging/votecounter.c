@@ -162,12 +162,6 @@ void* executeChildThread(void* argu) {
   }
 
 
-
-
-
-
-
-
   //  Find the Node with name inputFile, and get the name of it's parentName
   char* parentName = findNodeByName(mainNode, name)->parentName;
 
@@ -364,7 +358,7 @@ struct pathStu* initStructure(char* dagFile) {
     exit(0);
   }
   int r;
-  char* buf = malloc(sizeof(char)*MAX_IO_BUFFER_SIZE);
+  char* buf = malloc(sizeof(char) * MAX_IO_BUFFER_SIZE);
   struct pathStu* mainNode = (struct pathStu*)malloc(sizeof(struct pathStu));
   r = read(input, buf, MAX_IO_BUFFER_SIZE);
   if(r == 0) {

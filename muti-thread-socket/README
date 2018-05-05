@@ -1,0 +1,50 @@
+/* login: duxxx336, lixx4793
+ * date: 04/30/2018
+ * name: Feifan Du, Yuhao Li
+ * id: 5099129, 5250438
+ * Extra credits [No]
+ */
+
+Names: Feifan Du, Yuhao Li
+
+X500’s: duxxx336, lixx4793
+
+Lecture Section: Feifan is in section 10. Yuhao is in lection 10.
+
+Extra Credit: <No>
+
+How to compile:
+
+  $ make
+  can be used in command line to make both executables. Alternatively, 
+  $ make <name_of_executable>
+  will also work but only compiling the specified executable. For example:
+  $ make client
+  will compile only the client program.
+  $ make clean
+  will remove the generated executable
+
+How to use the program:
+
+  To run the server program, type the following in the command line:
+  $ ./server <DAG FILE> <SERVER PORT>
+  where <DAG FILE> is the file that details the structure among voting regions,
+  <SERVER PORT> will be this server program's port number once it starts
+  to run. Large numbers such 4061 should work as the <SERVER PORT>.
+  
+  To run the client program, type the following in the command line:
+  $ ./client <REQ FILE> <SERVER IP> <SERVER PORT>
+  where <REQ FILE> is the file with all the commands to be executed,
+  <SERVER IP> is the IP address of the machine on which the server
+  program is running, and <SERVER PORT> is the port number of the
+  corresponding server program.
+  
+  For example, if the server program is running on a machine
+  with IP 100.10.10.10 after the command:
+  $ ./server voting_regions.dag 4061
+  then the command to run the client program will be:
+  $ ./client input.req 100.10.10.10 4061
+  (assuming that voting_regions.dag and input.req are the file names of
+  corresponding input files)
+
+Assumptions: As those stated in the PA4 handout.
